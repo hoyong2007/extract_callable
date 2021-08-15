@@ -29,3 +29,24 @@ make bzImage -j`nproc`
 cd ../
 mv linux/ linux-4.14/
 ```
+
+# Usage
+the <kernel_path> should be form like "linux-<version>" ex)linux-4.14
+```bash
+python get_all.py <kernel-path>
+```
+it would make $WORKDIR/result-$VERSION directory, and the analyzation result will be at this dir
+
+* callable_with_result.lst
+| the list with callable function:address
+* callable_bb.lst
+| it has callable basic block list
+    ex) Function: <func>
+        <start_addr>:<end_addr> <size>
+        <start_addr>:<end_addr> <size>
+        ...
+
+* total_bb.lst : it has basic block list of every function
+* out.json
+| it has call graph that analyzed and extracted by radare2
+

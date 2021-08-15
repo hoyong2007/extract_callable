@@ -140,3 +140,34 @@ def get_basicblock(r, info):
         size = tmp[3]
         bb_info += '%s:%s %s\n' % (start, end, size)
     return bb_info
+
+
+# {'name' : {'addr', 'bb':[{'start','end','size'}, ...]}}
+def get_totalbb(totalbb_file):
+    with open(totalbb_file) as f:
+        data = f.read().strip().split('\n')
+
+    totalbb = dict()
+    tbb = list()
+    addr = -1
+    name = data[0].split()[1]
+    for line in data[1:]:
+        if line.strip() == '':
+            continue
+        if 'Function: ' in line:    # function start
+            totalbb[name] = {'addr':addr, 'bb':tbb}
+            name = line.split()[1]
+            tbb = list()
+            addr = -1
+        else:   # bb info "start:end size"
+            line = line.split()
+            size = int(line[1])
+            start = int(line[0].split(':')[0], 16)
+            end = int(line[0].split(':')[1], 16)
+            if addr == -1:
+                addr = '0x'+line[0].split(':')[0]
+            tbb.append({'start':start, 'end':end, 'size':size})
+
+    totalbb[name] = {'addr':addr, 'bb':tbb} # for last function
+
+    return totalbb

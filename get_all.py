@@ -1,4 +1,4 @@
-import util
+from util import *
 import json
 import os
 import sys
@@ -102,9 +102,11 @@ def extract_callable_function(data, function, address, depth):
     return callable_functions
 
 
-def step1(system_map):
+# Analyze all functions with radare2 and extract basic block info for each function
+def step1(result_path, r, system_map):
     print("start analyzing each functions...")
     sysmap_sorted = sorted(system_map.items(), key=lambda sys:int(sys[1]['addr'],16), reverse=False)
+    total_bb = ''
     end_addr = '0'
     for sys in sysmap_sorted:
         name = sys[0]
@@ -113,12 +115,13 @@ def step1(system_map):
             continue
         if int(addr,16) < int(end_addr, 16):    # skip if addr is already analyzed
             continue
-            
+
         r.cmd('s %s' % addr)
         r.cmd('af')
         bb_info = get_basicblock(r, {'name':name, 'addr':addr})
         if '0xffffff' not in bb_info:   # Cannot find function
             continue
+        total_bb += bb_info
         #print bb_info
         end_addr = '0'
         for bb in bb_info.strip().split('\n')[1:]:
@@ -135,8 +138,11 @@ def step1(system_map):
                 end_addr = end
                 print 'not same but in range'
     
-    r.cmd('agCj > %s/out.json' % logdir)
+    r.cmd('agCj > %s/out.json' % result_path)
     print('extract out.json successs')
+
+    with open('%s/total_bb.lst' % result_path, 'w') as f:
+        f.write(total_bb)
 
 
 def step2(result_path, data, system_map, syscall_list):
@@ -157,6 +163,17 @@ def step2(result_path, data, system_map, syscall_list):
         f.write(depth_function)
 
 
+def step3(result_path, r, system_map):
+    cfs = get_callable('%s/callable_with_name.lst' % result_path)
+    total_bb = get_totalbb('%s/total_bb.lst' % result_path)
+    
+    result = ''
+    for info in cfs:
+        result += get_basicblock(r, info)
+    with open('%s/callable_bb.lst' % result_path, 'w') as f:
+        f.write(result)
+
+
 def main():
     r, version, system_map, syscall_list = init(sys.argv[1])
     print(version, r)
@@ -167,9 +184,10 @@ def main():
     json_file = os.path.join(result_path, 'out.json')
     syscall_file = os.path.join(result_path, 'target_syscalls.lst')
 
-    step1(system_map)
+    step1(system_map, r, system_map)
     data = get_json(json_file)
-    step1(result_path, data, system_map, syscall_list)
+    step2(result_path, data, system_map, syscall_list)
+    step3(result_path, r, system_map)
 
 
 if __name__ == "__main__":

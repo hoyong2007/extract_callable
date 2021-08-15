@@ -26,7 +26,12 @@ def name2addr(name, system_map=system_map):
 
 
 def is_func(func, system_map=system_map):
-    addr = int(func['addr'], 16)
+    if type(func) == str:
+        addr = int(func,  16)
+    elif type(func) == dict:
+        addr = int(func['addr'],16)
+    else:
+        addr = func
 
     stext = int(system_map['_stext']['addr'], 16)
     etext = int(system_map['_etext']['addr'], 16)

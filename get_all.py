@@ -9,6 +9,7 @@ import time
 
 
 callable_functions = dict()
+depth_function = ''
 syscall_file = ''
 System_map_file = ''
 
@@ -59,7 +60,8 @@ def get_ref(data, function, address):
         f = f.replace('sym.','')
         f = f.replace('obj.','')
         f = f.replace('loc.','')
-        
+        f = f.replace('fcn.','') 
+
         if f == address.replace('0x',''): # find with address
             imports = d['imports']
             break
@@ -69,15 +71,15 @@ def get_ref(data, function, address):
 
     return imports
 
-depth_function = ''
-callable_functions = dict()
 def extract_callable_function(data, function, address, depth):
     global depth_function, callable_functions
 
     depth_function += '  ' * depth
-    depth_function += '%s\n' % func
+    depth_function += '%s\n' % function
 
     refs = get_ref(data, function, address)
+    print function, refs
+
     for name in refs:
         if 'unk.' in name:  # skip unknown
             continue
@@ -99,7 +101,7 @@ def extract_callable_function(data, function, address, depth):
             callable_functions[func] = addr
             extract_callable_function(data, func, addr, depth+1)
 
-    return callable_functions
+    #return callable_functions
 
 
 # Analyze all functions with radare2 and extract basic block info for each function
@@ -136,7 +138,7 @@ def step1(result_path, r, system_map):
                 end_addr = end
             elif start[:-2] == end_addr[:-2]:
                 end_addr = end
-                print 'not same but in range'
+                #print 'not same but in range'
     
     r.cmd('agCj > %s/out.json' % result_path)
     print('extract out.json successs')
@@ -151,9 +153,10 @@ def step2(result_path, data, system_map, syscall_list):
     for func in syscall_list:
         addr = name2addr(func)
         if addr != None:
-            callable_function[func] = addr
+            callable_functions[func] = addr
             extract_callable_function(data, func, addr, 0)
 
+    print(len(callable_functions))
     extracted_callable_with_name = ''
     for f in callable_functions.items():
         extracted_callable_with_name += '%s\n' % str(f)
@@ -165,7 +168,7 @@ def step2(result_path, data, system_map, syscall_list):
 
 def step3(result_path, r, system_map):
     cfs = get_callable_functions('%s/callable_with_name.lst' % result_path)
-    total_bb = get_totalbb('%s/total_bb.lst' % result_path)
+    total_bb = get_basicblock_from_file('%s/total_bb.lst' % result_path)
     
     result = ''
     for info in cfs:

@@ -13,28 +13,28 @@ def get_json(json_file):
         data = json.load(f)
     return data
 
-def addr2name(addr, system_map=system_map):
+def addr2name(addr):
+    global system_map
     for sys in system_map:
         if system_map[sys]['addr'] == addr:
             return sys
     return ''
 
-def name2addr(name, system_map=system_map):
+def name2addr(name):
+    global system_map
     if name in system_map:
-        return syscall_map[name]['addr']
+        return system_map[name]['addr']
     return ''
 
 
 def is_func(func):
     global system_map
-    if type(func) == str:
+    if type(func) == str or type(func) == unicode:
         addr = int(func,  16)
     elif type(func) == dict:
         addr = int(func['addr'],16)
     else:
         addr = func
-    
-    print func
 
     stext = int(system_map['_stext']['addr'], 16)
     etext = int(system_map['_etext']['addr'], 16)
@@ -82,17 +82,17 @@ def get_syscall_list(syscall_file, system_map):
             continue
 
         line = line.split('\t')
-        if line[0] or line[0][0] != '#': # comment start with '#'
+        if line[0] and line[0][0] == '#': # comment start with '#'
             continue
-                
+
         sys_func = line[-1].strip()
         if sys_func in system_map.keys() and sys_func not in result:   # original
-            result.append(r)
+            result.append(sys_func)
 
         sys_func = sys_func.replace('__x64_sys_','sys_')
         sys_func = sys_func.replace('__x32_sys_','sys_')
         if sys_func in system_map.keys() and sys_func not in result:   # sys_func
-            result.append(r)
+            result.append(sys_func)
 
         tmp = 'k' + sys_func
         if tmp in system_map.keys() and tmp not in result:   # ksys_func
@@ -130,12 +130,12 @@ def get_callable_functions(callable_file):
             continue
     return result
 
+
 def get_basicblock(r, info):
-    print(info['addr'])
+    #print(info['addr'])
     r.cmd('s %s' % info['addr'])
     raw = r.cmd('afb')
-    #print(info['name'])
-    #print(raw)
+
     bb_info = 'Function: %s\n' % info['name']
     if 'Cannot find function' in raw or raw.strip() == '':
         bb_info += '%s\n' % raw
@@ -151,11 +151,11 @@ def get_basicblock(r, info):
 
 
 # {'name' : {'addr', 'bb':[{'start','end','size'}, ...]}}
-def get_totalbb(totalbb_file):
-    with open(totalbb_file) as f:
+def get_basicblock_from_file(bb_file):
+    with open(bb_file) as f:
         data = f.read().strip().split('\n')
 
-    totalbb = dict()
+    readbb = dict()
     tbb = list()
     addr = -1
     name = data[0].split()[1]
@@ -163,7 +163,7 @@ def get_totalbb(totalbb_file):
         if line.strip() == '':
             continue
         if 'Function: ' in line:    # function start
-            totalbb[name] = {'addr':addr, 'bb':tbb}
+            readbb[name] = {'addr':addr, 'bb':tbb}
             name = line.split()[1]
             tbb = list()
             addr = -1
@@ -176,6 +176,6 @@ def get_totalbb(totalbb_file):
                 addr = '0x'+line[0].split(':')[0]
             tbb.append({'start':start, 'end':end, 'size':size})
 
-    totalbb[name] = {'addr':addr, 'bb':tbb} # for last function
+    readbb[name] = {'addr':addr, 'bb':tbb} # for last function
 
-    return totalbb
+    return readbb

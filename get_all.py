@@ -155,16 +155,16 @@ def step2(result_path, data, system_map, syscall_list):
             extract_callable_function(data, func, addr, 0)
 
     extracted_callable_with_name = ''
-    for f in callable_function.items():
+    for f in callable_functions.items():
         extracted_callable_with_name += '%s\n' % str(f)
-    with open('%s/extracted_callable_with_name.lst' % result_path, 'w') as f:
+    with open('%s/callable_with_name.lst' % result_path, 'w') as f:
         f.write(extracted_callable_with_name)
-    with open('%s/extracted_callable_with_depth.lst' % result_path, 'w') as f:
+    with open('%s/callable_with_depth.lst' % result_path, 'w') as f:
         f.write(depth_function)
 
 
 def step3(result_path, r, system_map):
-    cfs = get_callable('%s/callable_with_name.lst' % result_path)
+    cfs = get_callable_functions('%s/callable_with_name.lst' % result_path)
     total_bb = get_totalbb('%s/total_bb.lst' % result_path)
     
     result = ''
@@ -184,7 +184,7 @@ def main():
     json_file = os.path.join(result_path, 'out.json')
     syscall_file = os.path.join(result_path, 'target_syscalls.lst')
 
-    step1(system_map, r, system_map)
+    step1(result_path, r, system_map)
     data = get_json(json_file)
     step2(result_path, data, system_map, syscall_list)
     step3(result_path, r, system_map)

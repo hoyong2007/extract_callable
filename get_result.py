@@ -25,7 +25,7 @@ def step1(system_map, callable_func, data):
         f = f.replace('loc.','')
 
         if f in system_map:
-        	if is_func(system_map[f]) and system_map[f]['addr'] not in flist:
+            if is_func(system_map[f]) and system_map[f]['addr'] not in flist:
                 flist.append(system_map[f]['addr'])
         elif 'fcn.' in f:	# for kernel without symbols
             addr = f.replace('fcn.','')
@@ -55,10 +55,9 @@ def step2(system_map, callable_func, callable_bb, total_bb):
     for func in callable_func:
         if is_func(func):
             callablebb_cnt += len(callable_bb[func['name']]['bb'])
+
     print('Callable Basic Blocks: ', callablebb_cnt)
     print('Rate: %.3f%%' % (100*callablebb_cnt/float(total_cnt)))
-
-    return callablebb_cnt
 
 
 def lower_bound(addr_list, target):
@@ -77,100 +76,82 @@ def check_range(bb_info, target):
         return True
     return False
 
-# check the number of executed basic blocks
-def evaluate_log(addr_list, logfile):
-    check = [0] * len(addr_list)
-    
-    with open(logfile, 'r') as f:
-        data = f.read().strip().split('\n')
-        #print 'Total hit:', len(data)
-        for hit in data:
-            hitaddr = int(hit, 16)
-            idx = lower_bound(addr_list, hitaddr)
-            if check_range(addr_list[idx], hitaddr):
-                check[idx] = 1
-            elif idx > 0 and check_range(addr_list[idx-1], hitaddr):
-                check[idx] = 1
 
-    return sum(check)
-
-# check the number of executed related functions
-def evaluate_log2(addr_list, logfile):
-    checked = set()
+def evaluate_log(logfile, callable_list, total_list):
+    check_related_bb = [0] * len(callable_list)
+    check_total_function = set()
+    check_related_function = set()
+    check_total_bb = 0
 
     with open(logfile, 'r') as f:
         data = f.read().strip().split('\n')
-        #print 'Total hit:', len(data)
-        for hit in data:
-            hitaddr = int(hit, 16)
-            idx = lower_bound(addr_list, hitaddr)
 
-            if check_range(addr_list[idx], hitaddr):
-                checked.add(addr_list[idx]['name'])
+    for hit in data:
+        hitaddr = int(hit, 16)
+        idx_C = lower_bound(callable_list, hitaddr)
+        idx_T = lower_bound(total_list, hitaddr)
 
-            elif idx > 0 and check_range(addr_list[idx-1], hitaddr):
-                checked.add(addr_list[idx]['name'])
+        # check the number of related bb & function
+        if check_range(callable_list[idx_C], hitaddr):
+            check_related_bb[idx_C] = 1
+            check_related_function.add(callable_list[idx_C]['name'])
+        elif idx_C > 0 and check_range(callable_list[idx_C - 1], hitaddr):
+            check_related_bb[idx_C - 1] = 1
+            check_related_function.add(callable_list[idx_C - 1]['name'])
 
-    return len(checked)
+        # check the number of executed bb & function
+        check_total_bb += 1
+        if check_range(total_list[idx_T], hitaddr):
+            check_total_function.add(total_list[idx_T]['name'])
+        elif idx_T > 0 and check_range(total_list[idx_T - 1], hitaddr):
+            check_total_function.add(total_list[idx_T - 1]['name'])
 
-def evaluate_log3(addr_list, logfile):
-    checked = set()
-
-    with open(logfile, 'r') as f:
-        data = f.read().strip().split('\n')
-        #print 'Total hit:', len(data)
-        for hit in data:
-            hitaddr = int(hit, 16)
-            idx = lower_bound(addr_list, hitaddr)
-
-            if check_range(addr_list[idx], hitaddr):
-                checked.add(addr_list[idx]['name'])
-
-            elif idx > 0 and check_range(addr_list[idx-1], hitaddr):
-                checked.add(addr_list[idx]['name'])
-
-    return len(checked)
+    return sum(check_related_bb), check_total_bb, len(check_related_function), len(check_total_function)
 
 
-def step3(logdir, system_map, callable_func, callable_bb, callable_cnt, total_func, total_bb):
-    addr_list = list()
-    func_list = list()
-    sorted_bb = list()
+def step3(logdir, callable_func, callable_bb, total_func, total_bb):
+    callable_list = list()
+    total_list = list()
+    cnt = dict()
 
     for func in callable_func:
         if is_func(func):
             for bb in callable_bb[func['name']]['bb']:
-                addr_list.append({'addr':bb['start'], 'name':func['name'], 'size':bb['size']})
+                callable_list.append({'addr':bb['start'], 'name':func['name'], 'size':bb['size']})
     
     for func in total_func:
         if is_func(func['addr']) and func['name'] in total_bb:
             for bb in total_bb[func['name']]['bb']:
-                func_list.append({'addr':bb['start'], 'name':func['name'], 'size':bb['size']})
+                total_list.append({'addr':bb['start'], 'name':func['name'], 'size':bb['size']})
 
+    callable_list.sort(key=lambda block: block['addr'])
+    total_list.sort(key=lambda block: block['addr'])
+  
+    logfile_list = list()
+    if os.path.isdir(logdir):
+        logfile_list = [log for log in os.listdir(logdir) if '.log' in log]
+        logfile_list.sort(key=lambda log: int(log.split('.')[0]))
+    elif os.path.isfile(logdir):
+        logfile_list = [logdir]
 
-    addr_list.sort(key=lambda block: block['addr'])
-    func_list.sort(key=lambda block: block['addr'])
-    
-    logfile_list = [log for log in os.listdir(logdir) if '.log' in log]
-    logfile_list.sort(key=lambda log: int(log.split('.')[0]))
-    #logfile_list = [logdir]
+    if len(logfile_list) == 0:
+        print("\nerror: %s is not log file/directory" % logdir)
+        return
 
     for logfile_name in logfile_list:
-	    logfile = os.path.join(logdir, logfile_name)
-	    tmp_str = dir_str #+ '/' + str(i) + '.log'
-	    print(logfile)
-	    total_exec_count= sum(1 for line in open(logfile, 'r'))
-	    print("Executed Basic Blocks:", total_exec_count)
+        logfile = os.path.join(logdir, logfile_name)
+        ret = evaluate_log(logfile, callable_list, total_list)
+        
+        cnt['executed_related_bb'] = ret[0]
+        cnt['executed_bb']   = ret[1]
+        cnt['executed_related_function'] = ret[2]
+        cnt['executed_function']   = ret[3]
 
-	    total_exec_function = evaluate_log3(func_list, logfile)
-	    print("Executed Functions:", total_exec_function)
-
-	    related_exec_count = evaluate_log(addr_list, logfile)
-	    print("Executed Related Basic Blocks:", related_exec_count)
-
-	    related_exec_function = evaluate_log2(addr_list, logfile)
-	    print("Executed Related Functions:", related_exec_function)
-
+        print('\n - %s' % '/'.join(logfile.split('/')[-2:]))
+        print("Executed Basic Blocks: %d" % cnt['executed_bb'])
+        print("Executed Related Basic Blocks: %d" % cnt['executed_related_bb'])
+        print("Executed Functions: %d" % cnt['executed_function'])
+        print("Executed Related Functions: %d" % cnt['executed_related_function'])
 
 
 def main():
@@ -196,14 +177,14 @@ def main():
 
     os.chdir(result_path)
     step1(system_map, callable_func, data)
-    callable_cnt = step2(system_map, callable_func, callable_bb, total_bb)
-    step3(log_path, system_map, callable_func, callable_bb, callable_cnt, total_func, total_bb)
+    step2(system_map, callable_func, callable_bb, total_bb)
+    step3(log_path, callable_func, callable_bb, total_func, total_bb)
     
-    print(len(callable_func), len(callable_bb))
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        print('Usage: python get_result.py <kernel_path> <log_path>')
-        print('   ex) python get_result.py ../kernel/linux-4.14 ~/access/logs/time_4.14')
+        print('Usage: python get_result.py <kernel_path> <log_path(dir/file)>')
+        print('   ex) python get_result.py ../kernel/linux-4.14 ~/access/logs/time_4.14/')
+        print('   ex) python get_result.py ../kernel/linux-4.14 ~/access/logs/time_4.14/32.log')
     else:
         main()
